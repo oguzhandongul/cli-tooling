@@ -60,7 +60,7 @@ abstract class EnhanceJunitXmlTask @Inject constructor(
         outputDir.createDirectories()
 
         val resolver = SourceFileResolver(projectRoot)
-        val transformer = XmlReportTransformer(resolver, projectRoot)
+        val transformer = XmlReportTransformer(resolver)
 
         Files.walk(inputDir)
             .filter { it.isRegularFile() }
