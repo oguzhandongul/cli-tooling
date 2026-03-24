@@ -3,13 +3,12 @@ package io.github.oguzhandongul.citooling.junitxml.plugin
 import org.gradle.api.Plugin
 import org.gradle.api.Project
 import org.gradle.api.tasks.testing.Test
-import kotlin.jvm.java
 
 /**
  * Gradle plugin that post-processes JUnit XML reports and enriches test cases
  * with source file metadata.
  *
- * The plugin hooks into all Gradle [Test] tasks and registers a dedicated follow-up
+ * The plugin hooks into all Gradle [Test] tasks and creates a dedicated follow-up
  * task for each one. That follow-up task reads the original XML output, enriches
  * it, and writes the transformed reports to a separate directory.
  *
@@ -29,34 +28,46 @@ class JunitXmlFilenamePlugin : Plugin<Project> {
             project.layout.buildDirectory.dir(DEFAULT_OUTPUT_DIRECTORY)
         )
 
-        project.tasks.withType(Test::class.java).configureEach { testTask ->
-            registerEnhancementTask(project, testTask, extension)
+        project.tasks.withType(Test::class.java).all { testTask ->
+            createEnhancementTask(project, testTask, extension)
         }
     }
 
-    private fun registerEnhancementTask(
+    private fun createEnhancementTask(
         project: Project,
         testTask: Test,
         extension: JunitXmlFilenameExtension
     ) {
         val taskName = "enhance${testTask.name.replaceFirstChar(Char::uppercaseChar)}JunitXml"
 
-        project.tasks.register(taskName, EnhanceJunitXmlTask::class.java) { task ->
-            task.group = TASK_GROUP
-            task.description =
-                "Enhances JUnit XML reports produced by the '${testTask.name}' test task."
+        val enhancementTask = project.tasks.create(
+            taskName,
+            EnhanceJunitXmlTask::class.java
+        )
 
-            task.dependsOn(testTask)
+        enhancementTask.group = TASK_GROUP
+        enhancementTask.description =
+            "Enhances JUnit XML reports produced by the '${testTask.name}' test task."
 
-            task.originalXmlDirectory.set(testTask.reports.junitXml.outputLocation)
-            task.transformedXmlDirectory.set(
-                extension.outputDir.map { outputDir ->
-                    outputDir.dir(testTask.name)
+        enhancementTask.dependsOn(testTask)
+
+        enhancementTask.originalXmlDirectory.set(
+            project.layout.dir(
+                project.provider {
+                    testTask.reports.junitXml.outputLocation.get().asFile
                 }
             )
+        )
 
-            task.projectRootDirectory.set(project.layout.projectDirectory)
-        }
+        enhancementTask.transformedXmlDirectory.set(
+            extension.outputDir.map { outputDir ->
+                outputDir.dir(testTask.name)
+            }
+        )
+
+        enhancementTask.projectRootDirectory.set(project.layout.projectDirectory)
+
+        testTask.finalizedBy(enhancementTask)
     }
 
     private companion object {
