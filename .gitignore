@@ -6,3 +6,10 @@ build
 
 # Ignore Kotlin plugin data
 .kotlin
+
+# Ignore Idea directories
+.idea/
+.idea/caches
+
+local.properties
+result.env
