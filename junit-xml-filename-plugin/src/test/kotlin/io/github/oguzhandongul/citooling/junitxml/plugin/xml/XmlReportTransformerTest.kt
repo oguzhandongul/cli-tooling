@@ -130,4 +130,37 @@ class XmlReportTransformerTest {
 
         assertThat(Files.exists(outputXml)).isTrue()
     }
+
+    @Test
+    fun `should add line attribute when testcase has failure with stacktrace`() {
+        val projectRoot = Files.createTempDirectory("transformer-test")
+        val inputXml = projectRoot.resolve("TEST-failure.xml")
+
+        // Simulating a failed test case containing a stacktrace
+        Files.writeString(
+            inputXml,
+            """
+            <testsuite name="com.example.FailingTest" tests="1" failures="1">
+              <testcase name="testFail" classname="com.example.FailingTest" time="0.123">
+                <failure message="expected true but was false" type="java.lang.AssertionError">
+                  java.lang.AssertionError: expected true but was false
+                  at org.junit.Assert.assertTrue(Assert.java:41)
+                  at com.example.FailingTest.testFail(FailingTest.kt:42)
+                  at java.base/jdk.internal.reflect.NativeMethodAccessorImpl.invoke0(Native Method)
+                </failure>
+              </testcase>
+            </testsuite>
+            """.trimIndent()
+        )
+
+        val outputXml = projectRoot.resolve("out/TEST-failure.xml")
+
+        val transformer = XmlReportTransformer(SourceFileResolver(projectRoot))
+        transformer.transform(inputXml, outputXml)
+
+        val content = Files.readString(outputXml)
+
+        // Verifying that our regex successfully extracted line 42
+        assertThat(content).contains("""line="42"""")
+    }
 }
