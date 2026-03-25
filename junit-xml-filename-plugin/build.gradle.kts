@@ -1,14 +1,13 @@
 plugins {
-    kotlin("jvm") version "2.2.0"
+    alias(libs.plugins.kotlin.jvm)
     `java-gradle-plugin`
 }
 
 dependencies {
     implementation(kotlin("stdlib"))
-
     testImplementation(kotlin("test"))
-    testImplementation("org.junit.jupiter:junit-jupiter:5.10.3")
-    testImplementation("org.assertj:assertj-core:3.26.3")
+    testImplementation(libs.junit.jupiter)
+    testImplementation(libs.assertj.core)
     testImplementation(gradleTestKit())
 }
 
