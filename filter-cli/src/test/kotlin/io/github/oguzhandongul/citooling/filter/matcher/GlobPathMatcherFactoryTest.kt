@@ -63,4 +63,12 @@ class GlobPathMatcherFactoryTest {
         assertThat(factory.normalize("  src\\main\\App.kt  "))
             .isEqualTo("src/main/App.kt")
     }
+
+    @Test
+    fun `should match root level file with double star pattern`() {
+        val matcher = factory.create("**/*.kt")
+
+        assertThat(matcher.matches(factory.toPath("App.kt"))).isTrue()
+        assertThat(matcher.matches(factory.toPath("README.md"))).isFalse()
+    }
 }

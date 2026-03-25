@@ -5,31 +5,37 @@ import java.nio.file.Path
 import java.nio.file.PathMatcher
 
 /**
- * Creates JDK [PathMatcher] instances for repository-style glob expressions.
+ * Factory responsible for creating path matchers based on glob patterns.
  *
- * This implementation standardizes all input to forward-slash repository-relative
- * paths before delegating to the built-in `glob:` syntax supported by the JDK.
+ * This implementation delegates matching to the JDK's built-in [PathMatcher]
+ * using the `glob:` syntax, ensuring compatibility with standard glob semantics
+ * and avoiding the need for custom pattern parsing.
  *
- * The assignment only requires `*`, `**`, and exclusion markers handled outside
- * the matcher itself. Using [PathMatcher] avoids maintaining a custom glob engine
- * while still keeping the matching contract small and explicit.
  */
 class GlobPathMatcherFactory {
 
     /**
-     * Compiles a normalized glob expression into a [PathMatcher].
+     * Creates a [PathMatcher] for the given glob expression.
+     *
+     * For most patterns, the returned matcher is a direct JDK glob matcher. For patterns
+     * of the form a composite matcher is returned so root-level files are also
+     * matched as expected by CI filtering semantics.
      */
     fun create(glob: String): PathMatcher {
         val normalizedGlob = normalize(glob)
-        return FileSystems.getDefault().getPathMatcher("glob:$normalizedGlob")
+
+        val primaryMatcher = createMatcher(normalizedGlob)
+        val fallbackMatcher = createFallbackMatcherIfNeeded(normalizedGlob)
+
+        return PathMatcher { path ->
+            primaryMatcher.matches(path) || (fallbackMatcher?.matches(path) == true)
+        }
     }
 
     /**
-     * Normalizes an incoming path or glob to a repository-style representation.
-     *
-     * The CLI reasons about repository-relative paths, so using forward slashes
-     * consistently makes the intent clearer and avoids leaking host OS separators
-     * into matching logic.
+     * Normalizes input paths and patterns by:
+     * - replacing Windows-style separators (`\`) with `/`
+     * - trimming surrounding whitespace
      */
     fun normalize(path: String): String =
         path.replace('\\', '/').trim()
@@ -40,4 +46,27 @@ class GlobPathMatcherFactory {
      */
     fun toPath(path: String): Path =
         Path.of(normalize(path))
+
+    /**
+     * Creates a JDK [PathMatcher] for the given glob pattern.
+     */
+    private fun createMatcher(pattern: String): PathMatcher {
+        return FileSystems.getDefault().getPathMatcher("glob:$pattern")
+    }
+
+    /**
+     * Creates a fallback matcher for given patterns such as root-level files
+     * like `App.kt` are also matched.
+     *
+     * Returns `null` when no fallback is needed.
+     */
+    private fun createFallbackMatcherIfNeeded(pattern: String): PathMatcher? {
+        val match = ROOT_LEVEL_DOUBLE_STAR_PATTERN.matchEntire(pattern) ?: return null
+        val extension = match.groupValues[1]
+        return createMatcher("*.$extension")
+    }
+
+    private companion object {
+        val ROOT_LEVEL_DOUBLE_STAR_PATTERN = Regex("""^\*\*/\*\.(.+)$""")
+    }
 }
